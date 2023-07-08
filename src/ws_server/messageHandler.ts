@@ -1,6 +1,6 @@
 import ws, { RawData } from 'ws';
 import { parseMessage, stringlifyMessage } from './utils/utils';
-import { AddPlayerToRoomData, CreateRoomData, MessageType, RegMessageData } from './types/messages';
+import { AddPlayerToRoomData, AddShipsData, CreateRoomData, MessageType, RegMessageData } from './types/messages';
 import { userDB } from './db/users.db';
 import { roomDB } from './db/rooms.db';
 
@@ -24,12 +24,16 @@ export const parentHandler = (params: ParentHandlerParams) => {
       return regHandler(data, handlerParams);
     case MessageType.CreateRoom:
       return createRoomHandler(data, handlerParams);
-    case MessageType.AddPlayerToRoom:
-      return;
+    case MessageType.AddUserToRoom:
+      return addPlayerToRoomHandler(data, handlerParams);
+    case MessageType.AddShips:
+      return addShipsHandler(data, handlerParams);
     default:
       return;
   }
 };
+
+/* HANDLERS */
 
 export const closeHandler = (connectionId: number) => {
   const user = userDB.getUser(connectionId);
@@ -52,14 +56,62 @@ function createRoomHandler(_: CreateRoomData, { connectionId, client, connection
   connections.forEach((con) => con.send(getUpdateRoomMessage()));
 }
 
-// function addPlayerToRoomHandler({ roomIndex }: AddPlayerToRoomData, {}: HandlerParams) {
-//   room
-// }
+function addPlayerToRoomHandler(
+  { indexRoom }: AddPlayerToRoomData,
+  { connectionId, connections, client }: HandlerParams
+) {
+  const user = userDB.getUser(connectionId);
+  const room = roomDB.getRoomById(indexRoom);
+  const existingPlayerid = room?.roomUsers[0].index;
+
+  if (!user || !indexRoom || !existingPlayerid || existingPlayerid === connectionId) return;
+
+  const existingPlayerClient = connections.get(existingPlayerid);
+  if (!existingPlayerClient) return;
+
+  const res = roomDB.addPlayer(indexRoom, user);
+  if (!res?.game) return;
+
+  const gameId = res.game.gameId;
+  client.send(getStartGameMessage(gameId, user.index));
+  existingPlayerClient.send(getStartGameMessage(gameId, existingPlayerid));
+
+  connections.forEach((con) => con.send(getUpdateRoomMessage()));
+}
+
+function addShipsHandler({ indexPlayer, ships, gameId }: AddShipsData, { connections }: HandlerParams) {
+  const game = roomDB.addShips(gameId, indexPlayer, ships);
+  if (!game) return;
+  const shouldStart = game.gameIsStarted();
+  if (!shouldStart) return;
+
+  game.players.forEach(({ indexPlayer }) => {
+    const con = connections.get(indexPlayer);
+    if (!con) return;
+
+    const startGame = game.startGame(indexPlayer);
+    con.send(
+      stringlifyMessage({
+        type: MessageType.StartGame,
+        data: startGame,
+      })
+    );
+  });
+}
+
+/* HELPERS */
 
 function getUpdateRoomMessage() {
   const rooms = roomDB.getAllRooms();
   return stringlifyMessage({
     type: MessageType.UpdateRoom,
     data: rooms,
+  });
+}
+
+function getStartGameMessage(idGame: number, idPlayer: number) {
+  return stringlifyMessage({
+    type: MessageType.CreateGame,
+    data: { idGame, idPlayer },
   });
 }
