@@ -45,13 +45,14 @@ export class Game {
   };
 
   public attack = (indexPlayer: number, attack: Position) => {
-    console.log(attack);
     const targetPlayer = this.players.find((p) => p.indexPlayer !== indexPlayer);
     if (!targetPlayer) return;
 
     let isHit = false;
     let isKill = false;
     let isWin = false;
+
+    let newlyKilledShip: ShipWithCells | null = null;
 
     const updatedShips = targetPlayer.ships.map((ship) => {
       const cells = ship.cells.map((cell) => {
@@ -71,7 +72,10 @@ export class Game {
       const wasKilled = ship.killed;
       const shipKilled = cells.every((cell) => cell.killed);
 
-      if (!wasKilled && shipKilled) isKill = true;
+      if (!wasKilled && shipKilled) {
+        isKill = true;
+        newlyKilledShip = ship;
+      }
 
       return {
         ...ship,
@@ -84,7 +88,6 @@ export class Game {
     if (!isKill && !isHit) this.turn = targetPlayer.indexPlayer;
 
     targetPlayer.updateShips(updatedShips);
-    console.log(targetPlayer.ships);
 
     let status = 'miss';
 
@@ -101,8 +104,86 @@ export class Game {
         status,
       },
       turn: this.turn,
+      shipKilledSideEffects: getShipKilledSideEffects(indexPlayer, newlyKilledShip),
     };
   };
+}
+
+type StatusAttack = 'miss' | 'killed' | 'shot';
+
+interface Feedback {
+  position: Position;
+  currentPlayer: number;
+  status: StatusAttack;
+}
+
+function getShipKilledSideEffects(currentPlayer: number, ship: ShipWithCells | null) {
+  if (!ship) return null;
+  const killedCells: Cell[] = ship.cells;
+  const missedCells: Cell[] = [];
+  const isVertical = ship.direction;
+
+  if (isVertical) {
+    ship.cells.forEach((cell, index) => {
+      const isFirstCell = index === 0;
+      const isLastCell = index === ship.cells.length - 1;
+
+      const getYOffsets = () => {
+        if (isFirstCell && isLastCell) return [-1, 1];
+        else if (isFirstCell) return [-1];
+        else if (isLastCell) return [1];
+        return [];
+      };
+
+      const yOffsets = getYOffsets();
+      const xOffsets = [cell.x - 1, cell.x, cell.x + 1];
+
+      yOffsets.forEach((yOffset) => {
+        xOffsets.forEach((x) => {
+          missedCells.push({ x, y: cell.y + yOffset, killed: false });
+        });
+      });
+
+      missedCells.push({ ...cell, x: cell.x + 1 }, { ...cell, x: cell.x - 1 });
+    });
+  } else {
+    ship.cells.forEach((cell, index) => {
+      const isFirstCell = index === 0;
+      const isLastCell = index === ship.cells.length - 1;
+
+      const getXOffsets = () => {
+        if (isFirstCell && isLastCell) return [-1, 1];
+        else if (isFirstCell) return [-1];
+        else if (isLastCell) return [1];
+        return [];
+      };
+
+      const xOffsets = getXOffsets();
+      const yOffsets = [cell.y - 1, cell.y, cell.y + 1];
+
+      xOffsets.forEach((xOffset) => {
+        yOffsets.forEach((y) => {
+          missedCells.push({ y, x: cell.x + xOffset, killed: false });
+        });
+      });
+
+      missedCells.push({ ...cell, y: cell.y + 1 }, { ...cell, y: cell.y - 1 });
+    });
+  }
+
+  const killedFeedbacks: Feedback[] = killedCells.map((cell) => ({
+    currentPlayer,
+    position: { x: cell.x, y: cell.y },
+    status: 'killed',
+  }));
+
+  const missedFeedbacks: Feedback[] = missedCells.map((cell) => ({
+    currentPlayer,
+    position: { x: cell.x, y: cell.y },
+    status: 'miss',
+  }));
+
+  return [...killedFeedbacks, ...missedFeedbacks];
 }
 
 function getShipsWithCells(ships: Ship[]): ShipWithCells[] {
@@ -148,7 +229,6 @@ class Player {
 
   public addShips = (ships: Ship[]) => {
     this.ships = getShipsWithCells(ships);
-    console.log(this.ships[0]);
     return this;
   };
 

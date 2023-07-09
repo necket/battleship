@@ -117,10 +117,13 @@ function attackHandler({ gameId, indexPlayer, x, y }: AttackData, { connections 
   const game = roomDB.getGameById(gameId);
   if (!game) return;
 
+  const { currentPlayer } = game.getTurn();
+  if (currentPlayer !== indexPlayer) return;
+
   const result = game.attack(indexPlayer, { x, y });
   if (!result) return;
 
-  const { feedback, turn } = result;
+  const { feedback, turn: nextTurn, shipKilledSideEffects } = result;
 
   game.players.forEach(({ indexPlayer }) => {
     const con = connections.get(indexPlayer);
@@ -132,7 +135,19 @@ function attackHandler({ gameId, indexPlayer, x, y }: AttackData, { connections 
         data: feedback,
       })
     );
-    con.send(getTurnMessage(turn));
+
+    if (shipKilledSideEffects) {
+      shipKilledSideEffects.forEach((sideFeedback) => {
+        con.send(
+          stringlifyMessage({
+            type: MessageType.Attack,
+            data: sideFeedback,
+          })
+        );
+      });
+    }
+
+    con.send(getTurnMessage(nextTurn));
   });
 }
 
