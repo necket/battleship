@@ -5,6 +5,10 @@ export interface Position {
   y: number;
 }
 
+export interface Cell extends Position {
+  killed: boolean;
+}
+
 export interface Ship {
   position: {
     x: number;
@@ -16,6 +20,6 @@ export interface Ship {
 }
 
 export interface ShipWithCells extends Ship {
-  cells: Position[];
+  cells: Cell[];
   killed: boolean;
 }

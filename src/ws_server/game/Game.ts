@@ -1,4 +1,4 @@
-import { Position, Ship, ShipWithCells } from '../types/ship';
+import { Cell, Position, Ship, ShipWithCells } from '../types/ship';
 import { User } from '../types/users';
 
 export interface GameProps {
@@ -9,11 +9,19 @@ export interface GameProps {
 export class Game {
   readonly gameId: number;
   players: Player[];
+  turn: number;
 
   constructor({ gameId, roomUsers: [firstUser, secondUser] }: GameProps) {
     this.gameId = gameId;
     this.players = [new Player(firstUser), new Player(secondUser)];
+    this.turn = firstUser.index;
   }
+
+  public getTurn = () => {
+    return {
+      currentPlayer: this.turn,
+    };
+  };
 
   public addShips = (indexPlayer: number, ships: Ship[]) => {
     const player = this.players.find((p) => p.indexPlayer === indexPlayer);
@@ -35,21 +43,87 @@ export class Game {
       currentPlayerIndex: indexPlayer,
     };
   };
+
+  public attack = (indexPlayer: number, attack: Position) => {
+    console.log(attack);
+    const targetPlayer = this.players.find((p) => p.indexPlayer !== indexPlayer);
+    if (!targetPlayer) return;
+
+    let isHit = false;
+    let isKill = false;
+    let isWin = false;
+
+    const updatedShips = targetPlayer.ships.map((ship) => {
+      const cells = ship.cells.map((cell) => {
+        let alreadyKilled = cell.killed;
+
+        if (cell.x === attack.x && cell.y === attack.y) {
+          isHit = true;
+          alreadyKilled = true;
+        }
+
+        return {
+          ...cell,
+          killed: alreadyKilled,
+        };
+      });
+
+      const wasKilled = ship.killed;
+      const shipKilled = cells.every((cell) => cell.killed);
+
+      if (!wasKilled && shipKilled) isKill = true;
+
+      return {
+        ...ship,
+        cells,
+        killed: shipKilled,
+      };
+    });
+
+    if (updatedShips.every((ship) => ship.killed)) isWin = true;
+    if (!isKill && !isHit) this.turn = targetPlayer.indexPlayer;
+
+    targetPlayer.updateShips(updatedShips);
+    console.log(targetPlayer.ships);
+
+    let status = 'miss';
+
+    if (isKill) {
+      status = 'killed';
+    } else if (!isKill && isHit) {
+      status = 'shot';
+    }
+
+    return {
+      feedback: {
+        position: attack,
+        currentPlayer: indexPlayer,
+        status,
+      },
+      turn: this.turn,
+    };
+  };
 }
 
 function getShipsWithCells(ships: Ship[]): ShipWithCells[] {
   return ships.map((ship) => {
     const isVertical = ship.direction;
 
-    const cells: Position[] = Array.from({ length: ship.length }).map((_, index) => {
+    const cells: Cell[] = Array.from({ length: ship.length }).map((_, index) => {
+      if (isVertical) {
+        return {
+          x: ship.position.x,
+          y: ship.position.y + index,
+          killed: false,
+        };
+      }
+
       return {
-        x: isVertical ? ship.position.x : ship.position.x + index,
-        y: isVertical ? ship.position.y - index : ship.position.y,
+        x: ship.position.x + index,
+        y: ship.position.y,
+        killed: false,
       };
     });
-
-    console.log('SHIP', ship);
-    console.log('CELLs', cells);
 
     return {
       ...ship,
@@ -74,6 +148,12 @@ class Player {
 
   public addShips = (ships: Ship[]) => {
     this.ships = getShipsWithCells(ships);
+    console.log(this.ships[0]);
+    return this;
+  };
+
+  public updateShips = (ships: ShipWithCells[]) => {
+    this.ships = ships;
     return this;
   };
 }

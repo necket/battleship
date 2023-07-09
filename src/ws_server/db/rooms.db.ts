@@ -26,6 +26,10 @@ class RoomDB {
     return this.rooms.find((room) => room.roomId === roomId);
   };
 
+  public getGameById = (roomId: number) => {
+    return this.rooms.find((room) => room.roomId === roomId)?.game;
+  };
+
   public createRoom = (user: User) => {
     const roomId = nextRoomId++;
     const newRoom = {
@@ -47,7 +51,6 @@ class RoomDB {
       roomUsers,
       game: new Game({ gameId: roomId, roomUsers }),
     };
-    console.log('CREATED GAME WITH ID', roomId);
     return this.updateRoom(updatedRoom);
   };
 

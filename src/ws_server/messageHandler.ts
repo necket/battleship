@@ -1,6 +1,13 @@
 import ws, { RawData } from 'ws';
 import { parseMessage, stringlifyMessage } from './utils/utils';
-import { AddPlayerToRoomData, AddShipsData, CreateRoomData, MessageType, RegMessageData } from './types/messages';
+import {
+  AddPlayerToRoomData,
+  AddShipsData,
+  AttackData,
+  CreateRoomData,
+  MessageType,
+  RegMessageData,
+} from './types/messages';
 import { userDB } from './db/users.db';
 import { roomDB } from './db/rooms.db';
 
@@ -28,6 +35,8 @@ export const parentHandler = (params: ParentHandlerParams) => {
       return addPlayerToRoomHandler(data, handlerParams);
     case MessageType.AddShips:
       return addShipsHandler(data, handlerParams);
+    case MessageType.Attack:
+      return attackHandler(data, handlerParams);
     default:
       return;
   }
@@ -80,10 +89,14 @@ function addPlayerToRoomHandler(
 }
 
 function addShipsHandler({ indexPlayer, ships, gameId }: AddShipsData, { connections }: HandlerParams) {
-  const game = roomDB.addShips(gameId, indexPlayer, ships);
+  const game = roomDB.getGameById(gameId);
   if (!game) return;
+
+  game.addShips(indexPlayer, ships);
   const shouldStart = game.gameIsStarted();
   if (!shouldStart) return;
+
+  const { currentPlayer } = game.getTurn();
 
   game.players.forEach(({ indexPlayer }) => {
     const con = connections.get(indexPlayer);
@@ -96,10 +109,41 @@ function addShipsHandler({ indexPlayer, ships, gameId }: AddShipsData, { connect
         data: startGame,
       })
     );
+    con.send(getTurnMessage(currentPlayer));
+  });
+}
+
+function attackHandler({ gameId, indexPlayer, x, y }: AttackData, { connections }: HandlerParams) {
+  const game = roomDB.getGameById(gameId);
+  if (!game) return;
+
+  const result = game.attack(indexPlayer, { x, y });
+  if (!result) return;
+
+  const { feedback, turn } = result;
+
+  game.players.forEach(({ indexPlayer }) => {
+    const con = connections.get(indexPlayer);
+    if (!con) return;
+
+    con.send(
+      stringlifyMessage({
+        type: MessageType.Attack,
+        data: feedback,
+      })
+    );
+    con.send(getTurnMessage(turn));
   });
 }
 
 /* HELPERS */
+
+function getTurnMessage(currentPlayer: number) {
+  return stringlifyMessage({
+    type: MessageType.Turn,
+    data: { currentPlayer },
+  });
+}
 
 function getUpdateRoomMessage() {
   const rooms = roomDB.getAllRooms();

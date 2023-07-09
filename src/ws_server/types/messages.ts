@@ -8,6 +8,8 @@ export enum MessageType {
   CreateGame = 'create_game',
   AddShips = 'add_ships',
   StartGame = 'start_game',
+  Turn = 'turn',
+  Attack = 'attack',
 }
 
 export interface RegMessageData {
@@ -24,5 +26,12 @@ export interface AddPlayerToRoomData {
 export interface AddShipsData {
   gameId: number;
   ships: Ship[];
+  indexPlayer: number;
+}
+
+export interface AttackData {
+  gameId: number;
+  x: number;
+  y: number;
   indexPlayer: number;
 }
