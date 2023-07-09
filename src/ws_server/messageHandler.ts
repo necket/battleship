@@ -6,6 +6,7 @@ import {
   AttackData,
   CreateRoomData,
   MessageType,
+  RandomAttackData,
   RegMessageData,
 } from './types/messages';
 import { userDB } from './db/users.db';
@@ -37,6 +38,8 @@ export const parentHandler = (params: ParentHandlerParams) => {
       return addShipsHandler(data, handlerParams);
     case MessageType.Attack:
       return attackHandler(data, handlerParams);
+    case MessageType.RandomAttack:
+      return randomAttackHandler(data, handlerParams);
     default:
       return;
   }
@@ -151,7 +154,17 @@ function attackHandler({ gameId, indexPlayer, x, y }: AttackData, { connections 
   });
 }
 
+function randomAttackHandler(data: RandomAttackData, handlerParams: HandlerParams) {
+  return attackHandler({ ...data, ...generateRandomAtack() }, handlerParams);
+}
+
 /* HELPERS */
+
+function generateRandomAtack() {
+  const x = Math.floor(Math.random() * 10);
+  const y = Math.floor(Math.random() * 10);
+  return { x, y };
+}
 
 function getTurnMessage(currentPlayer: number) {
   return stringlifyMessage({

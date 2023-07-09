@@ -10,6 +10,7 @@ export enum MessageType {
   StartGame = 'start_game',
   Turn = 'turn',
   Attack = 'attack',
+  RandomAttack = 'randomAttack',
 }
 
 export interface RegMessageData {
@@ -35,3 +36,5 @@ export interface AttackData {
   y: number;
   indexPlayer: number;
 }
+
+export type RandomAttackData = Pick<AttackData, 'gameId' | 'indexPlayer'>;

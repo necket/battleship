@@ -48,6 +48,12 @@ export class Game {
     const targetPlayer = this.players.find((p) => p.indexPlayer !== indexPlayer);
     if (!targetPlayer) return;
 
+    // DO WE NEED THIS VALIDATION ?
+    // const isNewShot = targetPlayer.isNewShot(attack);
+    // if (!isNewShot) return;
+
+    const shots: Position[] = [attack];
+
     let isHit = false;
     let isKill = false;
     let isWin = false;
@@ -89,13 +95,23 @@ export class Game {
 
     targetPlayer.updateShips(updatedShips);
 
-    let status = 'miss';
+    let status: StatusAttack = 'miss';
 
     if (isKill) {
       status = 'killed';
     } else if (!isKill && isHit) {
       status = 'shot';
     }
+
+    const sideEffects = getShipKilledSideEffects(indexPlayer, newlyKilledShip);
+
+    if (sideEffects) {
+      sideEffects.forEach((effect) => {
+        shots.push(effect.position);
+      });
+    }
+
+    targetPlayer.addShots(shots);
 
     return {
       feedback: {
@@ -104,7 +120,7 @@ export class Game {
         status,
       },
       turn: this.turn,
-      shipKilledSideEffects: getShipKilledSideEffects(indexPlayer, newlyKilledShip),
+      shipKilledSideEffects: sideEffects,
     };
   };
 }
@@ -217,10 +233,12 @@ function getShipsWithCells(ships: Ship[]): ShipWithCells[] {
 class Player {
   readonly indexPlayer: number;
   ships: ShipWithCells[];
+  shots: string[];
 
   constructor({ index }: User) {
     this.indexPlayer = index;
     this.ships = [];
+    this.shots = [];
   }
 
   public getShips = () => {
@@ -230,6 +248,16 @@ class Player {
   public addShips = (ships: Ship[]) => {
     this.ships = getShipsWithCells(ships);
     return this;
+  };
+
+  public addShots = (shots: Position[]) => {
+    const stringifiedShots = shots.map((shot) => JSON.stringify(shot));
+    this.shots = [...this.shots, ...stringifiedShots];
+  };
+
+  public isNewShot = (attack: Position) => {
+    console.log(this.shots);
+    return this.shots.indexOf(JSON.stringify(attack)) === -1;
   };
 
   public updateShips = (ships: ShipWithCells[]) => {
