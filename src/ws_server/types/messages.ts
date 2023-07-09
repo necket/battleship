@@ -11,6 +11,8 @@ export enum MessageType {
   Turn = 'turn',
   Attack = 'attack',
   RandomAttack = 'randomAttack',
+  Finish = 'finish',
+  UpdateWinners = 'update_winners',
 }
 
 export interface RegMessageData {

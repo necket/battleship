@@ -1,5 +1,5 @@
 import { Game } from '../game/Game';
-import { Room } from '../types/rooms';
+import { Room, Winner } from '../types/rooms';
 import { Ship } from '../types/ship';
 import { User } from '../types/users';
 import { userDB } from './users.db';
@@ -39,6 +39,11 @@ class RoomDB {
     };
     this.rooms = [...this.rooms, newRoom];
 
+    return this.rooms;
+  };
+
+  public removeRoom = (roomId: number) => {
+    this.rooms = [...this.rooms].filter((room) => room.roomId !== roomId);
     return this.rooms;
   };
 

@@ -44,13 +44,16 @@ export class Game {
     };
   };
 
+  public getTargetPlayer = (indexPlayer: number) => {
+    return this.players.find((p) => p.indexPlayer !== indexPlayer);
+  };
+
   public attack = (indexPlayer: number, attack: Position) => {
     const targetPlayer = this.players.find((p) => p.indexPlayer !== indexPlayer);
     if (!targetPlayer) return;
 
-    // DO WE NEED THIS VALIDATION ?
-    // const isNewShot = targetPlayer.isNewShot(attack);
-    // if (!isNewShot) return;
+    const isNewShot = targetPlayer.isNewShot(attack);
+    if (!isNewShot) return;
 
     const shots: Position[] = [attack];
 
@@ -121,6 +124,7 @@ export class Game {
       },
       turn: this.turn,
       shipKilledSideEffects: sideEffects,
+      winPlayer: isWin ? indexPlayer : null,
     };
   };
 }
@@ -230,7 +234,7 @@ function getShipsWithCells(ships: Ship[]): ShipWithCells[] {
   });
 }
 
-class Player {
+export class Player {
   readonly indexPlayer: number;
   ships: ShipWithCells[];
   shots: string[];
@@ -256,7 +260,6 @@ class Player {
   };
 
   public isNewShot = (attack: Position) => {
-    console.log(this.shots);
     return this.shots.indexOf(JSON.stringify(attack)) === -1;
   };
 

@@ -11,6 +11,9 @@ import {
 } from './types/messages';
 import { userDB } from './db/users.db';
 import { roomDB } from './db/rooms.db';
+import { Player } from './game/Game';
+import { Position } from './types/ship';
+import { winnersDB } from './db/winners.db';
 
 interface ParentHandlerParams {
   connectionId: number;
@@ -53,11 +56,13 @@ export const closeHandler = (connectionId: number) => {
   userDB.deleteUser(connectionId);
 };
 
-function regHandler({ name }: RegMessageData, { connectionId, type, client }: HandlerParams) {
-  const user = userDB.createUser({ index: connectionId, name });
-  const res = stringlifyMessage({ type, data: user });
-  client.send(res);
-  client.send(getUpdateRoomMessage());
+function regHandler(data: RegMessageData, { connectionId, type, client }: HandlerParams) {
+  const res = userDB.createUser({ index: connectionId, ...data });
+  client.send(stringlifyMessage({ type, data: res }));
+
+  if (!res.error) {
+    client.send(getUpdateRoomMessage());
+  }
 }
 
 function createRoomHandler(_: CreateRoomData, { connectionId, client, connections }: HandlerParams) {
@@ -126,7 +131,7 @@ function attackHandler({ gameId, indexPlayer, x, y }: AttackData, { connections 
   const result = game.attack(indexPlayer, { x, y });
   if (!result) return;
 
-  const { feedback, turn: nextTurn, shipKilledSideEffects } = result;
+  const { feedback, turn: nextTurn, shipKilledSideEffects, winPlayer } = result;
 
   game.players.forEach(({ indexPlayer }) => {
     const con = connections.get(indexPlayer);
@@ -150,17 +155,52 @@ function attackHandler({ gameId, indexPlayer, x, y }: AttackData, { connections 
       });
     }
 
-    con.send(getTurnMessage(nextTurn));
+    if (winPlayer) {
+      con.send(
+        stringlifyMessage({
+          type: MessageType.Finish,
+          data: { winPlayer },
+        })
+      );
+    } else {
+      con.send(getTurnMessage(nextTurn));
+    }
   });
+
+  if (winPlayer) {
+    roomDB.removeRoom(gameId);
+    const winners = winnersDB.updateWinners(winPlayer);
+
+    if (winners) {
+      connections.forEach((con) =>
+        con.send(
+          stringlifyMessage({
+            type: MessageType.UpdateWinners,
+            data: winners,
+          })
+        )
+      );
+    }
+  }
 }
 
-function randomAttackHandler(data: RandomAttackData, handlerParams: HandlerParams) {
-  return attackHandler({ ...data, ...generateRandomAtack() }, handlerParams);
+function randomAttackHandler({ gameId, indexPlayer }: RandomAttackData, handlerParams: HandlerParams) {
+  const game = roomDB.getGameById(gameId);
+  if (!game) return;
+  const targetPlayer = game.getTargetPlayer(indexPlayer);
+  if (!targetPlayer) return;
+
+  return attackHandler({ gameId, indexPlayer, ...generateUniqueRandomAttack(targetPlayer) }, handlerParams);
 }
 
 /* HELPERS */
 
-function generateRandomAtack() {
+function generateUniqueRandomAttack(targetPlayer: Player): ReturnType<typeof generateRandomAttack> {
+  const randomAttack = generateRandomAttack();
+  return targetPlayer.isNewShot(randomAttack) ? randomAttack : generateUniqueRandomAttack(targetPlayer);
+}
+
+function generateRandomAttack() {
   const x = Math.floor(Math.random() * 10);
   const y = Math.floor(Math.random() * 10);
   return { x, y };
